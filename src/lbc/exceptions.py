@@ -12,3 +12,7 @@ class RequestError(LBCError):
 
 class DatadomeError(RequestError):
     """Raised when access is blocked by Datadome anti-bot protection."""
+
+
+class NotFoundError(LBCError):
+    """Raised when a user or ad is not found."""

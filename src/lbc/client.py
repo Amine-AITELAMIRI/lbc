@@ -1,13 +1,14 @@
 from .session import Session
 from .models import Proxy, Search, Category, AdType, OwnerType, Sort, Region, Department, City, User, Ad
-from .exceptions import DatadomeError, RequestError
+from .exceptions import DatadomeError, RequestError, NotFoundError
 from .utils import build_search_payload_with_args, build_search_payload_with_url
 
 from typing import Optional, List, Union
 from curl_cffi import BrowserTypeLiteral
 
 class Client(Session):
-    def __init__(self, proxy: Optional[Proxy] = None, impersonate: BrowserTypeLiteral = None, request_verify: bool = True):
+    def __init__(self, proxy: Optional[Proxy] = None, impersonate: BrowserTypeLiteral = None, 
+                request_verify: bool = True, timeout: int = 30, max_retries: int = 5):
         """
         Initializes a Leboncoin Client instance with optional proxy, browser impersonation, and SSL verification settings.
 
@@ -17,20 +18,25 @@ class Client(Session):
             proxy (Optional[Proxy], optional): Proxy configuration to use for the client. If provided, it will be applied to all requests. Defaults to None.
             impersonate (BrowserTypeLiteral, optional): Browser type to impersonate for requests (e.g., "firefox", "chrome", "edge", "safari", "safari_ios", "chrome_android"). If None, a random browser type will be chosen.
             request_verify (bool, optional): Whether to verify SSL certificates when sending requests. Set to False to disable SSL verification (not recommended for production). Defaults to True.
+            timeout (int, optional): Maximum time in seconds to wait for a request before timing out. Defaults to 30.
+            max_retries (int, optional): Maximum number of times to retry a request in case of failure (403 error). Defaults to 5.
         """
         super().__init__(proxy=proxy, impersonate=impersonate)
-
+        
         self.request_verify = request_verify
+        self.timeout = timeout
+        self.max_retries = max_retries
 
-    def _fetch(self, method: str, url: str, payload: Optional[dict] = None, timeout: int = 30) -> Union[dict, None]:
+    def _fetch(self, method: str, url: str, payload: Optional[dict] = None, timeout: int = 30, max_retries: int = 5) -> Union[dict, None]:
         """
         Internal method to send an HTTP request using the configured session.
 
         Args:
-            method (staticmethod): HTTP method to use (e.g., `GET`, `POST`).
+            method (str): HTTP method to use (e.g., "GET", "POST").
             url (str): Full URL of the API endpoint.
             payload (Optional[dict], optional): JSON payload to send with the request. Used for POST/PUT methods. Defaults to None.
             timeout (int, optional): Timeout for the request, in seconds. Defaults to 30.
+            max_retries (int, optional): Number of times to retry the request in case of failure. Defaults to 3.
 
         Raises:
             DatadomeError: Raised when the request is blocked by Datadome protection (HTTP 403).
@@ -49,10 +55,15 @@ class Client(Session):
         if response.ok:
             return response.json()
         elif response.status_code == 403:
+            if max_retries > 0:
+                self.session = self._init_session(self._proxy, self._impersonate) # Re-init session
+                return self._fetch(method=method, url=url, payload=payload, timeout=timeout, max_retries=max_retries - 1)
             if self.proxy:
                 raise DatadomeError(f"Access blocked by Datadome: your proxy appears to have a poor reputation, try to change it.")
             else:
                 raise DatadomeError(f"Access blocked by Datadome: your activity was flagged as suspicious. Please avoid sending excessive requests.")
+        elif response.status_code == 404 or response.status_code == 410:
+            raise NotFoundError(f"Unable to find ad or user.")
         else:
             raise RequestError(f"Request failed with status code {response.status_code}.")
 
@@ -108,7 +119,7 @@ class Client(Session):
                 owner_type=owner_type, shippable=shippable, search_in_title_only=search_in_title_only, **kwargs
             )
 
-        body = self._fetch(method="POST", url="https://api.leboncoin.fr/finder/search", payload=payload)
+        body = self._fetch(method="POST", url="https://api.leboncoin.fr/finder/search", payload=payload, timeout=self.timeout, max_retries=self.max_retries)
         return Search._build(raw=body, client=self)
 
     def get_user(
@@ -127,13 +138,13 @@ class Client(Session):
         Returns:
             User: A `User` object containing the parsed user information.
         """
-        user_data = self._fetch(method="GET", url=f"https://api.leboncoin.fr/api/user-card/v2/{user_id}/infos")
+        user_data = self._fetch(method="GET", url=f"https://api.leboncoin.fr/api/user-card/v2/{user_id}/infos", timeout=self.timeout, max_retries=self.max_retries)
 
         pro_data = None
         if user_data.get("account_type") == "pro":
             try:
-                pro_data = self._fetch(method="GET", url=f"https://api.leboncoin.fr/api/onlinestores/v2/users/{user_id}?fields=all")
-            except Exception:
+                pro_data = self._fetch(method="GET", url=f"https://api.leboncoin.fr/api/onlinestores/v2/users/{user_id}?fields=all", timeout=self.timeout, max_retries=self.max_retries)
+            except NotFoundError:
                 pass # Some professional users may not have a Leboncoin page.
 
         return User._build(user_data=user_data, pro_data=pro_data)
@@ -141,7 +152,7 @@ class Client(Session):
     def get_ad(
         self,
         ad_id: Union[str, int]
-    ):
+    ) -> Ad:
         """
         Retrieve detailed information about a classified ad using its ID.
 
@@ -155,6 +166,6 @@ class Client(Session):
         Returns:
             Ad: An `Ad` object containing the parsed ad information.
         """
-        body = self._fetch(method="GET", url=f"https://api.leboncoin.fr/api/adfinder/v1/classified/{ad_id}")
+        body = self._fetch(method="GET", url=f"https://api.leboncoin.fr/api/adfinder/v1/classified/{ad_id}", timeout=self.timeout, max_retries=self.max_retries)
 
         return Ad._build(raw=body, client=self)
