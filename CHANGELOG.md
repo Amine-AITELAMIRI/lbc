@@ -1,3 +1,7 @@
+## 1.0.9
+### Fix
+* Fixed SSL verification issue during Leboncoin cookie initialization.
+
 ## 1.0.8
 ### Added
 * `max_retries` and `timeout` parameters to `Client`.
