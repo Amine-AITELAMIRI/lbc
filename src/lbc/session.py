@@ -5,12 +5,12 @@ from typing import Optional
 import random
 
 class Session:
-    def __init__(self, proxy: Optional[Proxy] = None, impersonate: BrowserTypeLiteral = None):
-        self._session = self._init_session(proxy=proxy, impersonate=impersonate)
+    def __init__(self, proxy: Optional[Proxy] = None, impersonate: BrowserTypeLiteral = None, request_verify: bool = True):
+        self._session = self._init_session(proxy=proxy, impersonate=impersonate, request_verify=request_verify)
         self._proxy = proxy
         self._impersonate = impersonate
 
-    def _init_session(self, proxy: Optional[Proxy] = None, impersonate: BrowserTypeLiteral = None) -> requests.Session:
+    def _init_session(self, proxy: Optional[Proxy] = None, impersonate: BrowserTypeLiteral = None, request_verify: bool = True) -> requests.Session:
         """
         Initializes an HTTP session with optional proxy configuration and browser impersonation.
 
@@ -19,7 +19,8 @@ class Session:
         Args:
             proxy (Optional[Proxy], optional): Proxy configuration to use for the session. If provided, it will be applied to both HTTP and HTTPS traffic. Defaults to None.
             impersonate (BrowserTypeLiteral, optional): Browser type to impersonate for requests (e.g., "firefox", "chrome", "edge", "safari", "safari_ios", "chrome_android"). If None, a random browser type will be chosen.            
-        
+            request_verify (bool, optional): Whether to verify SSL certificates for HTTPS requests. Defaults to True.
+
         Returns:
             requests.Session: A configured session instance ready to send requests.
         """
@@ -53,7 +54,7 @@ class Session:
                 "https": proxy.url
             }
 
-        session.get("https://www.leboncoin.fr/") # Init cookies
+        session.get("https://www.leboncoin.fr/", verify=request_verify) # Init cookies
 
         return session
 

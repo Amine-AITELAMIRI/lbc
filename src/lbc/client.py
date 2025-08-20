@@ -21,7 +21,7 @@ class Client(Session):
             timeout (int, optional): Maximum time in seconds to wait for a request before timing out. Defaults to 30.
             max_retries (int, optional): Maximum number of times to retry a request in case of failure (403 error). Defaults to 5.
         """
-        super().__init__(proxy=proxy, impersonate=impersonate)
+        super().__init__(proxy=proxy, impersonate=impersonate, request_verify=request_verify)
         
         self.request_verify = request_verify
         self.timeout = timeout
@@ -36,7 +36,7 @@ class Client(Session):
             url (str): Full URL of the API endpoint.
             payload (Optional[dict], optional): JSON payload to send with the request. Used for POST/PUT methods. Defaults to None.
             timeout (int, optional): Timeout for the request, in seconds. Defaults to 30.
-            max_retries (int, optional): Number of times to retry the request in case of failure. Defaults to 3.
+            max_retries (int, optional): Number of times to retry the request in case of failure. Defaults to 5.
 
         Raises:
             DatadomeError: Raised when the request is blocked by Datadome protection (HTTP 403).
@@ -56,7 +56,7 @@ class Client(Session):
             return response.json()
         elif response.status_code == 403:
             if max_retries > 0:
-                self.session = self._init_session(self._proxy, self._impersonate) # Re-init session
+                self.session = self._init_session(proxy=self._proxy, impersonate=self._impersonate, request_verify=self.request_verify) # Re-init session
                 return self._fetch(method=method, url=url, payload=payload, timeout=timeout, max_retries=max_retries - 1)
             if self.proxy:
                 raise DatadomeError(f"Access blocked by Datadome: your proxy appears to have a poor reputation, try to change it.")
