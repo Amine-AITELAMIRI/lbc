@@ -1,3 +1,8 @@
+## 1.0.8
+### Added
+* `max_retries` and `timeout` parameters to `Client`.
+* `NotFoundError` exception raised when an ad or user is not found.
+
 ## 1.0.7
 ### Added
 * Automatic rotation of browser impersonation when `impersonate` argument in `Client` is set to None.
