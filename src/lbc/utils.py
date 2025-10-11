@@ -251,7 +251,7 @@ def build_search_payload_with_args(
             payload["filters"]["keywords"]["type"] = "subject"
 
     if shippable:
-        payload["filters"]["locations"]["shippable"] = True
+        payload["filters"]["location"]["shippable"] = True
 
     if kwargs:
         for key, value in kwargs.items():
