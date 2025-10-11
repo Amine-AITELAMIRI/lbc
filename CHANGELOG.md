@@ -1,3 +1,7 @@
+## 1.0.10
+### Fix
+* KeyError when using shippable=True (#5)
+
 ## 1.0.9
 ### Fix
 * Fixed SSL verification issue during Leboncoin cookie initialization.
