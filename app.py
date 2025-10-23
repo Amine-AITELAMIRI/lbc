@@ -415,7 +415,7 @@ def get_categories():
         if not attr_name.startswith('_'):
             categories.append({
                 "name": attr_name,
-                "value": getattr(Category, attr_name)
+                "value": str(getattr(Category, attr_name))
             })
     return jsonify({"categories": categories})
 
@@ -427,7 +427,7 @@ def get_sort_options():
         if not attr_name.startswith('_'):
             sort_options.append({
                 "name": attr_name,
-                "value": getattr(Sort, attr_name)
+                "value": str(getattr(Sort, attr_name))
             })
     return jsonify({"sort_options": sort_options})
 
@@ -439,7 +439,7 @@ def get_ad_types():
         if not attr_name.startswith('_'):
             ad_types.append({
                 "name": attr_name,
-                "value": getattr(AdType, attr_name)
+                "value": str(getattr(AdType, attr_name))
             })
     return jsonify({"ad_types": ad_types})
 
@@ -451,7 +451,7 @@ def get_owner_types():
         if not attr_name.startswith('_'):
             owner_types.append({
                 "name": attr_name,
-                "value": getattr(OwnerType, attr_name)
+                "value": str(getattr(OwnerType, attr_name))
             })
     return jsonify({"owner_types": owner_types})
 
