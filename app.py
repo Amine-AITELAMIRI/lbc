@@ -407,52 +407,47 @@ def get_user(user_id):
         logger.error(f"Unexpected error: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
+def serialize_enum(enum_class):
+    """Helper function to serialize enum values to JSON"""
+    items = []
+    for attr_name in dir(enum_class):
+        if not attr_name.startswith('_'):
+            value = getattr(enum_class, attr_name)
+            # Convert enum value to JSON-serializable format
+            if hasattr(value, 'value'):
+                items.append({
+                    "name": attr_name,
+                    "value": str(value.value)
+                })
+            else:
+                items.append({
+                    "name": attr_name,
+                    "value": str(value)
+                })
+    return items
+
 @app.route('/api/categories', methods=['GET'])
 def get_categories():
     """Get list of available categories"""
-    categories = []
-    for attr_name in dir(Category):
-        if not attr_name.startswith('_'):
-            categories.append({
-                "name": attr_name,
-                "value": str(getattr(Category, attr_name))
-            })
+    categories = serialize_enum(Category)
     return jsonify({"categories": categories})
 
 @app.route('/api/sort-options', methods=['GET'])
 def get_sort_options():
     """Get list of available sort options"""
-    sort_options = []
-    for attr_name in dir(Sort):
-        if not attr_name.startswith('_'):
-            sort_options.append({
-                "name": attr_name,
-                "value": str(getattr(Sort, attr_name))
-            })
+    sort_options = serialize_enum(Sort)
     return jsonify({"sort_options": sort_options})
 
 @app.route('/api/ad-types', methods=['GET'])
 def get_ad_types():
     """Get list of available ad types"""
-    ad_types = []
-    for attr_name in dir(AdType):
-        if not attr_name.startswith('_'):
-            ad_types.append({
-                "name": attr_name,
-                "value": str(getattr(AdType, attr_name))
-            })
+    ad_types = serialize_enum(AdType)
     return jsonify({"ad_types": ad_types})
 
 @app.route('/api/owner-types', methods=['GET'])
 def get_owner_types():
     """Get list of available owner types"""
-    owner_types = []
-    for attr_name in dir(OwnerType):
-        if not attr_name.startswith('_'):
-            owner_types.append({
-                "name": attr_name,
-                "value": str(getattr(OwnerType, attr_name))
-            })
+    owner_types = serialize_enum(OwnerType)
     return jsonify({"owner_types": owner_types})
 
 if __name__ == '__main__':
