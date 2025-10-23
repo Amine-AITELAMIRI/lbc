@@ -46,13 +46,36 @@ class DatadomeProtection:
         ]
     
     def _load_proxies(self):
-        """Load proxies from environment variables or return empty list"""
+        """Load proxies from ProxyScrape premium list"""
         proxies = []
-        # You can add proxy configuration here
-        # Example: proxies = [
-        #     {"host": "proxy1.example.com", "port": 8080, "username": "user", "password": "pass"},
-        #     {"host": "proxy2.example.com", "port": 8080, "username": "user", "password": "pass"}
-        # ]
+        
+        try:
+            # Load proxies from ProxyScrape premium list
+            proxy_file = os.path.join(os.path.dirname(__file__), 'proxyscrape_premium_http_proxies.txt')
+            
+            if os.path.exists(proxy_file):
+                with open(proxy_file, 'r') as f:
+                    proxy_lines = f.readlines()
+                
+                for line in proxy_lines:
+                    line = line.strip()
+                    if line and ':' in line:
+                        host, port = line.split(':', 1)
+                        proxies.append({
+                            "host": host.strip(),
+                            "port": int(port.strip()),
+                            "username": None,  # No authentication for these proxies
+                            "password": None
+                        })
+                
+                logger.info(f"Loaded {len(proxies)} proxies from ProxyScrape premium list")
+            else:
+                logger.warning("ProxyScrape premium list not found, using empty proxy list")
+                
+        except Exception as e:
+            logger.error(f"Error loading proxies: {e}")
+            proxies = []
+        
         return proxies
     
     def get_next_proxy(self):
