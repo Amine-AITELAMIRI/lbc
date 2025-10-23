@@ -34,18 +34,15 @@ def build_search_payload_with_url(
     for arg in args:
         key, value = arg.split("=") # e.g: real_estate_type 3,4 / square 300-400 / category 9
 
-        match key:
-            case "text":
-                payload["filters"]["keywords"] = {
-                    "text": value
-                }
-
-            case "category":
-                payload["filters"]["category"] = {
-                    "id": value
-                }
-
-            case "locations":
+        if key == "text":
+            payload["filters"]["keywords"] = {
+                "text": value
+            }
+        elif key == "category":
+            payload["filters"]["category"] = {
+                "id": value
+            }
+        elif key == "locations":
                 payload["filters"]["location"] = {
                     "locations": []
                 }
@@ -57,33 +54,32 @@ def build_search_payload_with_url(
                     prefix_parts = location_parts[0].split("_")
                     if len(prefix_parts[0]) == 1: # Department ['d', '1'], Region ['r', '1'], or Place ['p', 'give a star if you like it!']
                         location_id = prefix_parts[1] # Department '1', Region '1' or Place 'give a star if you like it!'
-                        match prefix_parts[0]:
-                            case "d": # Department
-                                payload["filters"]["location"]["locations"].append(
-                                    {
-                                        "locationType": "department",
-                                        "department_id": location_id
-                                    }
-                                )
-                            case "r": # Region
-                                payload["filters"]["location"]["locations"].append(
-                                    {
-                                        "locationType": "region",
-                                        "region_id": location_id
-                                    }
-                                )                            
-                            case "p": # Place
-                                area_values = location_parts[1].split("_") # lat, lng, default_radius, radius
-                                payload["filters"]["location"]["locations"].append(
-                                    {
-                                        "locationType": "place",
-                                        "place": location_id,
-                                        "label": location_id,
-                                        "area": build_area(area_values)
-                                    }
-                                )     
-                            case _:
-                                raise InvalidValue(f"Unknown location type: {prefix_parts[0]}")
+                        if prefix_parts[0] == "d": # Department
+                            payload["filters"]["location"]["locations"].append(
+                                {
+                                    "locationType": "department",
+                                    "department_id": location_id
+                                }
+                            )
+                        elif prefix_parts[0] == "r": # Region
+                            payload["filters"]["location"]["locations"].append(
+                                {
+                                    "locationType": "region",
+                                    "region_id": location_id
+                                }
+                            )                            
+                        elif prefix_parts[0] == "p": # Place
+                            area_values = location_parts[1].split("_") # lat, lng, default_radius, radius
+                            payload["filters"]["location"]["locations"].append(
+                                {
+                                    "locationType": "place",
+                                    "place": location_id,
+                                    "label": location_id,
+                                    "area": build_area(area_values)
+                                }
+                            )     
+                        else:
+                            raise InvalidValue(f"Unknown location type: {prefix_parts[0]}")
                     
                     else: # City
                         area_values = location_parts[1].split("_") # lat, lng, default_radius, radius
@@ -95,20 +91,16 @@ def build_search_payload_with_url(
                             }
                         )
 
-            case "order":
-                payload["sort_order"] = value
-
-            case "sort":
-                payload["sort_by"] = value
-
-            case "owner_type":
-                payload["owner_type"] = value
-
-            case "shippable":
-                if value == "1":
-                    payload["filters"]["location"]["shippable"] = True
-
-            case _: 
+        elif key == "order":
+            payload["sort_order"] = value
+        elif key == "sort":
+            payload["sort_by"] = value
+        elif key == "owner_type":
+            payload["owner_type"] = value
+        elif key == "shippable":
+            if value == "1":
+                payload["filters"]["location"]["shippable"] = True
+        else: 
                 if value in ["page"]: # Pass
                     continue
                 
@@ -213,37 +205,36 @@ def build_search_payload_with_args(
             "locations": []
         }
         for location in locations:
-            match location:
-                case Region():
-                    payload["filters"]["location"]["locations"].append(
-                        {
-                            "locationType": "region",
-                            "region_id": location.value[0]
-                        }
-                    )
-                case Department():
-                    payload["filters"]["location"]["locations"].append(
-                        {
-                            "locationType": "department",
-                            "region_id": location.value[0],
-                            "department_id": location.value[2]
-                        }
-                    )
-                case City():
-                    payload["filters"]["location"]["locations"].append(
-                        {
-                            "area": {
-                                "lat": location.lat,
-                                "lng": location.lng,
-                                "radius": location.radius
-                            },
-                            "city": location.city,
-                            "label": f"{location.city} (toute la ville)" if location.city else None,
-                            "locationType": "city"
-                        }
-                    )
-                case _:
-                    raise InvalidValue("The provided location is invalid. It must be an instance of Region, Department, or City.")
+            if isinstance(location, Region):
+                payload["filters"]["location"]["locations"].append(
+                    {
+                        "locationType": "region",
+                        "region_id": location.value[0]
+                    }
+                )
+            elif isinstance(location, Department):
+                payload["filters"]["location"]["locations"].append(
+                    {
+                        "locationType": "department",
+                        "region_id": location.value[0],
+                        "department_id": location.value[2]
+                    }
+                )
+            elif isinstance(location, City):
+                payload["filters"]["location"]["locations"].append(
+                    {
+                        "area": {
+                            "lat": location.lat,
+                            "lng": location.lng,
+                            "radius": location.radius
+                        },
+                        "city": location.city,
+                        "label": f"{location.city} (toute la ville)" if location.city else None,
+                        "locationType": "city"
+                    }
+                )
+            else:
+                raise InvalidValue("The provided location is invalid. It must be an instance of Region, Department, or City.")
 
     # Search in title only
     if text:

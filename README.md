@@ -45,6 +45,31 @@ pip install lbc
 
 Start with the [examples](examples/) to quickly understand how to use the library in real-world scenarios.
 
+## 🌐 Web API Deployment
+
+This package now includes a Flask web API wrapper that you can deploy to Render for use in web applications.
+
+### Quick Deploy to Render
+1. Fork this repository
+2. Go to [Render Dashboard](https://dashboard.render.com)
+3. Create a new Web Service
+4. Connect your GitHub repository
+5. Use these settings:
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `gunicorn app:app`
+6. Deploy!
+
+### API Endpoints
+- `POST /api/search` - Search for ads
+- `POST /api/search-url` - Search using Le Bon Coin URL
+- `GET /api/ad/{id}` - Get ad details
+- `GET /api/user/{id}` - Get user details
+- `GET /health` - Health check
+
+📖 **Full deployment guide**: See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions and API documentation.
+
+🧪 **Test locally**: Run `python test_api.py` to test the API before deployment.
+
 ### Client
 To create client you need to use `lbc.Client` class
 ```python
