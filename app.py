@@ -6,10 +6,12 @@ Deploy this to Render to use LBC API in your web applications
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import lbc
-from lbc.models import Category, AdType, OwnerType, Sort, Region, Department, City
+from lbc.models import Category, AdType, OwnerType, Sort, Region, Department, City, Proxy
 from lbc.exceptions import DatadomeError, RequestError, NotFoundError
 import logging
 import os
+import time
+import random
 from typing import Optional, List, Union
 
 # Configure logging
@@ -21,6 +23,106 @@ CORS(app)  # Enable CORS for all routes
 
 # Initialize LBC client
 client = lbc.Client()
+
+# Datadome protection strategies
+class DatadomeProtection:
+    def __init__(self):
+        self.request_count = 0
+        self.last_request_time = 0
+        self.min_delay = 2  # Minimum delay between requests in seconds
+        self.max_delay = 5  # Maximum delay between requests in seconds
+        
+        # Proxy rotation (you can add your proxies here)
+        self.proxies = self._load_proxies()
+        self.current_proxy_index = 0
+        
+        # User agents rotation
+        self.user_agents = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        ]
+    
+    def _load_proxies(self):
+        """Load proxies from environment variables or return empty list"""
+        proxies = []
+        # You can add proxy configuration here
+        # Example: proxies = [
+        #     {"host": "proxy1.example.com", "port": 8080, "username": "user", "password": "pass"},
+        #     {"host": "proxy2.example.com", "port": 8080, "username": "user", "password": "pass"}
+        # ]
+        return proxies
+    
+    def get_next_proxy(self):
+        """Get next proxy in rotation"""
+        if not self.proxies:
+            return None
+        
+        proxy_config = self.proxies[self.current_proxy_index]
+        self.current_proxy_index = (self.current_proxy_index + 1) % len(self.proxies)
+        
+        return Proxy(
+            host=proxy_config["host"],
+            port=proxy_config["port"],
+            username=proxy_config.get("username"),
+            password=proxy_config.get("password")
+        )
+    
+    def get_random_user_agent(self):
+        """Get a random user agent"""
+        return random.choice(self.user_agents)
+    
+    def apply_rate_limiting(self):
+        """Apply rate limiting between requests"""
+        current_time = time.time()
+        time_since_last = current_time - self.last_request_time
+        
+        if time_since_last < self.min_delay:
+            sleep_time = self.min_delay - time_since_last
+            # Add some randomness to avoid detection
+            sleep_time += random.uniform(0, self.max_delay - self.min_delay)
+            logger.info(f"Rate limiting: sleeping for {sleep_time:.2f} seconds")
+            time.sleep(sleep_time)
+        
+        self.last_request_time = time.time()
+        self.request_count += 1
+    
+    def create_client_with_protection(self):
+        """Create a new client with Datadome protection"""
+        proxy = self.get_next_proxy()
+        
+        # Create client with proxy if available
+        if proxy:
+            logger.info(f"Using proxy: {proxy.host}:{proxy.port}")
+            return lbc.Client(proxy=proxy)
+        else:
+            logger.info("No proxy available, using direct connection")
+            return lbc.Client()
+    
+    def retry_with_backoff(self, func, max_retries=3):
+        """Retry function with exponential backoff for Datadome errors"""
+        for attempt in range(max_retries):
+            try:
+                return func()
+            except DatadomeError as e:
+                if attempt == max_retries - 1:
+                    raise e
+                
+                # Exponential backoff: 2^attempt seconds
+                wait_time = 2 ** attempt + random.uniform(0, 1)
+                logger.warning(f"Datadome error on attempt {attempt + 1}, retrying in {wait_time:.2f} seconds")
+                time.sleep(wait_time)
+                
+                # Create a new client for retry
+                self.create_client_with_protection()
+            except Exception as e:
+                # For non-Datadome errors, don't retry
+                raise e
+
+# Initialize protection manager
+protection = DatadomeProtection()
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -136,19 +238,26 @@ def search_ads():
         if 'shippable' in data:
             filters['shippable'] = data['shippable']
         
-        # Perform search
-        result = client.search(
-            text=text,
-            category=category,
-            sort=sort,
-            locations=locations if locations else None,
-            page=page,
-            limit=limit,
-            ad_type=ad_type,
-            owner_type=owner_type,
-            search_in_title_only=search_in_title_only,
-            **filters
-        )
+        # Apply rate limiting
+        protection.apply_rate_limiting()
+        
+        # Perform search with retry mechanism
+        def perform_search():
+            search_client = protection.create_client_with_protection()
+            return search_client.search(
+                text=text,
+                category=category,
+                sort=sort,
+                locations=locations if locations else None,
+                page=page,
+                limit=limit,
+                ad_type=ad_type,
+                owner_type=owner_type,
+                search_in_title_only=search_in_title_only,
+                **filters
+            )
+        
+        result = protection.retry_with_backoff(perform_search)
         
         # Convert result to JSON-serializable format
         response_data = {
@@ -444,11 +553,38 @@ def get_ad_types():
     ad_types = serialize_enum(AdType)
     return jsonify({"ad_types": ad_types})
 
-@app.route('/api/owner-types', methods=['GET'])
-def get_owner_types():
-    """Get list of available owner types"""
-    owner_types = serialize_enum(OwnerType)
-    return jsonify({"owner_types": owner_types})
+@app.route('/api/protection/config', methods=['GET'])
+def get_protection_config():
+    """Get current Datadome protection configuration"""
+    return jsonify({
+        "min_delay": protection.min_delay,
+        "max_delay": protection.max_delay,
+        "request_count": protection.request_count,
+        "proxy_count": len(protection.proxies),
+        "user_agent_count": len(protection.user_agents)
+    })
+
+@app.route('/api/protection/config', methods=['POST'])
+def update_protection_config():
+    """Update Datadome protection configuration"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        if 'min_delay' in data:
+            protection.min_delay = max(1, data['min_delay'])  # Minimum 1 second
+        if 'max_delay' in data:
+            protection.max_delay = max(protection.min_delay, data['max_delay'])
+        
+        return jsonify({
+            "message": "Configuration updated",
+            "min_delay": protection.min_delay,
+            "max_delay": protection.max_delay
+        })
+    except Exception as e:
+        logger.error(f"Error updating protection config: {e}")
+        return jsonify({"error": "Failed to update configuration"}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
