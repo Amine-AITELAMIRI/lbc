@@ -3,7 +3,7 @@ services:
     name: lbc-api
     env: python
     plan: free
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && pip install .
     startCommand: gunicorn app:app
     envVars:
       - key: PYTHON_VERSION
